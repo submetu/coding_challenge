@@ -29,6 +29,10 @@ export class WorkflowFactory {
 
         const savedWorkflow = await workflowRepository.save(workflow);
 
+        // two report tasks would deadlock — each waits for the other to reach a terminal state
+        const reportSteps = workflowDef.steps.filter(step => step.taskType === 'report');
+        if (reportSteps.length > 1) throw new Error('Workflow can only have one report task');
+
         const tasks: Task[] = workflowDef.steps.map(step => {
             const task = new Task();
             task.clientId = clientId;

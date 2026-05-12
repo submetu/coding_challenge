@@ -254,6 +254,33 @@ Create a new job class to generate a report by aggregating the outputs of multip
 - Ensure the job runs only after all preceding tasks are complete.
 - Handle cases where tasks fail, and include error information in the report.
 
+#### **Testing:**
+
+1. Make sure `example_workflow.yml` has the `report` step:
+   ```yaml
+   - taskType: "report"
+     stepNumber: 4
+   ```
+
+2. Start the server:
+   ```bash
+   npm start
+   ```
+
+3. Send a valid polygon — all 4 tasks should complete happily:
+   ```bash
+   curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Polygon","coordinates":[[[-63.624885,-10.311050],[-63.624885,-10.367865],[-63.612783,-10.367865],[-63.612783,-10.311050],[-63.624885,-10.311050]]]}}'
+   ```
+   Wait ~25 seconds. You should see `analysis`, `notification`, `polygonArea`, and `report` all hit `completed`. The `report` result will be a JSON object with `workflowId`, a `tasks` array containing the output of each preceding task, and `"finalReport": "Aggregated data and results"`. Workflow status should be `completed`.
+
+4. Send invalid GeoJSON — the report should still run and capture the failure:
+   ```bash
+   curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Point","coordinates":[0,0]}}'
+   ```
+   `polygonArea` will fail with the error stored in `progress`. The `report` task waits for all other tasks to finish, then runs anyway — its result will include `"output": null, "error": "Invalid GeoJSON: expected Polygon or MultiPolygon, got Point"` for the `polygonArea` entry. Workflow status will be `failed`.
+
+5. Check the database to verify all rows and columns look right.
+
 ---
 
 ### **3. Support Interdependent Tasks in Workflows**

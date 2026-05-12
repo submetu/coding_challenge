@@ -11,11 +11,6 @@ export class TaskRunner {
         private taskRepository: Repository<Task>,
     ) {}
 
-    /**
-     * Runs the appropriate job based on the task's type, managing the task's status.
-     * @param task - The task entity that determines which job to run.
-     * @throws If the job fails, it updates the task status to failed and logs the error.
-     */
     async run(task: Task): Promise<void> {
         task.status = TaskStatus.InProgress;
         task.progress = 'starting job...';
@@ -25,7 +20,7 @@ export class TaskRunner {
         try {
             console.log(`Starting job ${task.taskType} for task ${task.taskId}...`);
             const resultRepository = this.taskRepository.manager.getRepository(Result);
-            const taskResult = await job.run(task);
+            const taskResult = await job.run(task, this.taskRepository.manager);
             console.log(`Job ${task.taskType} for task ${task.taskId} completed successfully.`);
             const result = new Result();
             result.taskId = task.taskId!;
@@ -40,10 +35,8 @@ export class TaskRunner {
             console.error(`Error running job ${task.taskType} for task ${task.taskId}:`, error);
 
             task.status = TaskStatus.Failed;
-            task.progress = null;
+            task.progress = error?.message ?? 'Unknown error';
             await this.taskRepository.save(task);
-
-            // throw error;
         }
 
         const workflowRepository = this.taskRepository.manager.getRepository(Workflow);

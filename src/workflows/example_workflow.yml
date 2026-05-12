@@ -4,5 +4,7 @@ steps:
     stepNumber: 1
   - taskType: "notification"
     stepNumber: 2
-  - taskType: "polygonArea"                                                                                                                                                          
+  - taskType: "polygonArea"
     stepNumber: 3
+  - taskType: "report"
+    stepNumber: 4
