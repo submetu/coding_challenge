@@ -1,16 +1,10 @@
 import { Repository } from 'typeorm';
 import { Task } from '../models/Task';
 import { getJobForTaskType } from '../jobs/JobFactory';
-import {WorkflowStatus} from "../workflows/WorkflowFactory";
 import {Workflow} from "../models/Workflow";
 import {Result} from "../models/Result";
-
-export enum TaskStatus {
-    Queued = 'queued',
-    InProgress = 'in_progress',
-    Completed = 'completed',
-    Failed = 'failed'
-}
+import { WorkflowStatus } from '../workflows/enums';
+import { TaskStatus } from './enums';
 
 export class TaskRunner {
     constructor(
@@ -20,7 +14,7 @@ export class TaskRunner {
     /**
      * Runs the appropriate job based on the task's type, managing the task's status.
      * @param task - The task entity that determines which job to run.
-     * @throws If the job fails, it rethrows the error.
+     * @throws If the job fails, it updates the task status to failed and logs the error.
      */
     async run(task: Task): Promise<void> {
         task.status = TaskStatus.InProgress;
