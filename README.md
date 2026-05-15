@@ -273,13 +273,20 @@ Create a new job class to generate a report by aggregating the outputs of multip
    ```bash
    curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Polygon","coordinates":[[[-63.624885,-10.311050],[-63.624885,-10.367865],[-63.612783,-10.367865],[-63.612783,-10.311050],[-63.624885,-10.311050]]]}}'
    ```
-   Wait around 25 seconds... You should see `notification`, `analysis`, `polygonArea`, and `report` all hit `completed`. The `report` result will be a JSON object with `workflowId`, a `tasks` array containing the output of each dependency, and `"finalReport": "Aggregated data and results"`. Workflow status should be `completed`...
+   Wait around 25 seconds. Expected:
+   - `notification`, `analysis`, `polygonArea`, and `report` all hit `completed`
+   - `report` result: JSON object with `workflowId`, a `tasks` array containing the output of each dependency, and `"finalReport": "Aggregated data and results"`
+   - Workflow status: `completed`
 
 4. Send invalid GeoJSON — the report should still run and capture the failure:
    ```bash
    curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Point","coordinates":[0,0]}}'
    ```
-   `polygonArea` will fail with the error stored in the `progress` field. The `report` task waits for its dependencies to reach a terminal state before running.. Its result will include `"output": null, "error": "Invalid GeoJSON: expected Polygon or MultiPolygon, got Point"` for the `polygonArea` task. Also workflow status will be `failed`...
+   Expected:
+   - `polygonArea` fails with the error stored in the `progress` field
+   - `report` waits for its dependencies to reach a terminal state before running
+   - Report result includes `"output": null, "error": "Invalid GeoJSON: expected Polygon or MultiPolygon, got Point"` for the `polygonArea` task
+   - Workflow status: `failed`
 
 5. Check the database to verify all entries.
 
