@@ -391,6 +391,8 @@ Modify the system to support workflows with tasks that depend on the outputs of 
    - `analysis` (step 3) is blocked until `notification` completes
    - `report` (step 1) is blocked until steps 2, 3, and 4 all reach a terminal state — runs last despite being step 1
 
+   Check server logs to confirm the chain: `notification` and `polygonArea` start first, `analysis` starts only after `notification` completes, `report` starts last.
+
    Expected database state (verify via `sqlite3`, task order inside `report.output.tasks` may vary):
    ```json
    {
