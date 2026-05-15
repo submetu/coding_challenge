@@ -11,11 +11,11 @@ export async function taskWorker() {
     while (true) {
         const queuedTasks = await taskRepository.find({
             where: { status: TaskStatus.Queued },
-            relations: ['workflow']
+            relations: ['workflow', 'dependsOn']
         });
 
         for (const task of queuedTasks) {
-            if (await isReadyToRun(task, taskRepository)) {
+            if (await isReadyToRun(task)) {
                 try {
                     await taskRunner.run(task);
                 } catch (error) {

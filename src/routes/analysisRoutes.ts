@@ -17,7 +17,7 @@ router.post('/', async (req, res) => {
             workflowId: workflow.workflowId,
             message: 'Workflow created and tasks queued from YAML definition.'
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Error creating workflow:', error);
         res.status(500).json({ message: 'Failed to create workflow' });
     }

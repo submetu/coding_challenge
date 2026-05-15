@@ -1,6 +1,12 @@
 import { Task } from "../models/Task";
-import { EntityManager } from "typeorm";
+
+export interface DependencyResult {
+    taskId: string;
+    type: string;
+    output: unknown;
+    error?: string;
+}
 
 export interface Job {
-    run(task: Task, entityManager: EntityManager): Promise<any>;
+    run(task: Task, depResults: DependencyResult[]): Promise<unknown>;
 }

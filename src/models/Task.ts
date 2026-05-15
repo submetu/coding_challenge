@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, ManyToMany, JoinTable } from 'typeorm';
 import { Workflow } from './Workflow';
 import { TaskStatus } from '../workers/enums';
 
@@ -30,4 +30,12 @@ export class Task {
 
     @ManyToOne(() => Workflow, workflow => workflow.tasks)
     workflow!: Workflow;
+
+    @ManyToMany(() => Task)
+    @JoinTable({
+        name: 'task_dependencies',
+        joinColumn: { name: 'task_id', referencedColumnName: 'taskId' },
+        inverseJoinColumn: { name: 'depends_on_task_id', referencedColumnName: 'taskId' }
+    })
+    dependsOn?: Task[];
 }

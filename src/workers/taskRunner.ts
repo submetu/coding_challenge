@@ -1,15 +1,16 @@
 import { Repository } from 'typeorm';
 import { Task } from '../models/Task';
 import { getJobForTaskType } from '../jobs/JobFactory';
-import {Workflow} from "../models/Workflow";
-import {Result} from "../models/Result";
+import { DependencyResult } from '../jobs/Job';
+import { Workflow } from "../models/Workflow";
+import { Result } from "../models/Result";
 import { WorkflowStatus } from '../workflows/enums';
 import { TaskStatus } from './enums';
 
 export class TaskRunner {
     constructor(
         private taskRepository: Repository<Task>,
-    ) {}
+    ) { }
 
     async run(task: Task): Promise<void> {
         task.status = TaskStatus.InProgress;
@@ -20,7 +21,8 @@ export class TaskRunner {
         try {
             console.log(`Starting job ${task.taskType} for task ${task.taskId}...`);
             const resultRepository = this.taskRepository.manager.getRepository(Result);
-            const taskResult = await job.run(task, this.taskRepository.manager);
+            const dependencyResults = await this.buildDependencyResults(task);
+            const taskResult = await job.run(task, dependencyResults);
             console.log(`Job ${task.taskType} for task ${task.taskId} completed successfully.`);
             const result = new Result();
             result.taskId = task.taskId!;
@@ -31,11 +33,11 @@ export class TaskRunner {
             task.progress = null;
             await this.taskRepository.save(task);
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(`Error running job ${task.taskType} for task ${task.taskId}:`, error);
 
             task.status = TaskStatus.Failed;
-            task.progress = error?.message ?? 'Unknown error';
+            task.progress = error instanceof Error ? error.message : 'Unknown error';
             await this.taskRepository.save(task);
         }
 
@@ -56,5 +58,34 @@ export class TaskRunner {
 
             await workflowRepository.save(currentWorkflow);
         }
+    }
+
+    private async buildDependencyResults(task: Task): Promise<DependencyResult[]> {
+        if (!task.dependsOn?.length) return [];
+
+        const resultRepository = this.taskRepository.manager.getRepository(Result);
+
+        return Promise.all(
+            task.dependsOn.map(async dependency => {
+                if (dependency.status === TaskStatus.Completed && dependency.resultId) {
+                    const result = await resultRepository.findOne({ where: { resultId: dependency.resultId } });
+                    let output = null;
+                    if (result?.data) {
+                        try {
+                            output = JSON.parse(result.data);
+                        } catch { 
+                            output = result.data; 
+                        }
+                    }
+                    return { taskId: dependency.taskId, type: dependency.taskType, output };
+                }
+                return {
+                    taskId: dependency.taskId,
+                    type: dependency.taskType,
+                    output: null,
+                    error: dependency.progress ?? 'Task failed'
+                };
+            })
+        );
     }
 }

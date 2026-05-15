@@ -1,6 +1,7 @@
 export interface WorkflowStep {
     taskType: string;
     stepNumber: number;
+    dependsOn?: number[];
 }
 
 export interface WorkflowDefinition {

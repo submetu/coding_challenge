@@ -256,11 +256,13 @@ Create a new job class to generate a report by aggregating the outputs of multip
 
 #### **Testing:**
 
-1. Make sure `example_workflow.yml` has the `report` step:
+1. Make sure `example_workflow.yml` has the `report` step with `dependsOn`:
    ```yaml
    - taskType: "report"
      stepNumber: 4
+     dependsOn: [1, 2, 3]
    ```
+   > **Why `dependsOn` is required here:** Rather than having the report task magically detect and wait for "all preceding tasks," i used the explicit `dependsOn` system from Task 3. I will explain my reasoning.. `ReportGenerationJob` aggregates only its declared dependencies.. This makes it composable (e.g., a workflow could have multiple report tasks each covering different subsets of steps). For a full aggregation of ALL tasks regardless of dependencies, Task 4's `finalResult` on Workflow should be available for users to get a complete report of all the tasks in the workflow. In a real-life scenario however, if i saw Step 4 as a user story after we delivered step 2 to production, i would have a meeting with the PO to revisit the requirements. For this small project, since i am not able to ask questions atm, this approach seemed like a good tradeoff. 
 
 2. Start the server:
    ```bash
@@ -271,15 +273,15 @@ Create a new job class to generate a report by aggregating the outputs of multip
    ```bash
    curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Polygon","coordinates":[[[-63.624885,-10.311050],[-63.624885,-10.367865],[-63.612783,-10.367865],[-63.612783,-10.311050],[-63.624885,-10.311050]]]}}'
    ```
-   Wait ~25 seconds. You should see `analysis`, `notification`, `polygonArea`, and `report` all hit `completed`. The `report` result will be a JSON object with `workflowId`, a `tasks` array containing the output of each preceding task, and `"finalReport": "Aggregated data and results"`. Workflow status should be `completed`.
+   Wait around 25 seconds... You should see `notification`, `analysis`, `polygonArea`, and `report` all hit `completed`. The `report` result will be a JSON object with `workflowId`, a `tasks` array containing the output of each dependency, and `"finalReport": "Aggregated data and results"`. Workflow status should be `completed`...
 
 4. Send invalid GeoJSON — the report should still run and capture the failure:
    ```bash
    curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Point","coordinates":[0,0]}}'
    ```
-   `polygonArea` will fail with the error stored in `progress`. The `report` task waits for all other tasks to finish, then runs anyway — its result will include `"output": null, "error": "Invalid GeoJSON: expected Polygon or MultiPolygon, got Point"` for the `polygonArea` entry. Workflow status will be `failed`.
+   `polygonArea` will fail with the error stored in the `progress` field. The `report` task waits for its dependencies to reach a terminal state before running.. Its result will include `"output": null, "error": "Invalid GeoJSON: expected Polygon or MultiPolygon, got Point"` for the `polygonArea` task. Also workflow status will be `failed`...
 
-5. Check the database to verify all rows and columns look right.
+5. Check the database to verify all entries.
 
 ---
 
@@ -299,6 +301,55 @@ Modify the system to support workflows with tasks that depend on the outputs of 
 
 - Ensure dependent tasks do not execute until their dependencies are completed.
 - Test workflows where tasks are chained through dependencies.
+
+#### **Testing:**
+
+1. Make sure `example_workflow.yml` includes `dependsOn` declarations such as follows:
+   ```yaml
+   name: "example_workflow"
+   steps:
+     - taskType: "notification"
+       stepNumber: 1
+     - taskType: "analysis"
+       stepNumber: 2
+       dependsOn: [1]
+     - taskType: "polygonArea"
+       stepNumber: 3
+     - taskType: "report"
+       stepNumber: 4
+       dependsOn: [1, 2, 3]
+   ```
+   Note: `analysis` (step 2) depends on `notification` (step 1).. This proves that execution order is determined by `dependsOn`, not by step number or SQLite insertion order.
+
+2. Start the server:
+   ```bash
+   npm start
+   ```
+
+3. Send a valid polygon request:
+   ```bash
+   curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Polygon","coordinates":[[[-63.624885,-10.311050],[-63.624885,-10.367865],[-63.612783,-10.367865],[-63.612783,-10.311050],[-63.624885,-10.311050]]]}}'
+   ```
+   Wait around 25 seconds. Expect the following task execution order:
+   - `notification` (step 1) — runs immediately (no deps)
+   - `polygonArea` (step 3) — runs immediately (no deps)
+   - `analysis` (step 2) — runs only after `notification` completes
+   - `report` (step 4) — runs only after steps 1, 2, and 3 all reach a terminal state
+
+   All 4 tasks should be `completed` and also workflow status should be `completed`.
+
+4. Send invalid GeoJSON to verify failure propagation:
+   ```bash
+   curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Point","coordinates":[0,0]}}'
+   ```
+   Expected:
+   - `polygonArea` fails (invalid geometry type)
+   - `analysis` still runs after `notification` completes 
+   - `report` runs after all 3 deps are terminal (including the failed `polygonArea`)
+   - Report result includes `"output": null, "error": "Invalid GeoJSON: expected Polygon or MultiPolygon, got Point"` for the `polygonArea` entry
+   - Workflow status is `failed` since `polygonArea` failed..
+
+5. Verify results in the database...
 
 ---
 
