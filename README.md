@@ -198,8 +198,14 @@ Create a new job class to calculate the area of a polygon from the GeoJSON provi
 
 1. Make sure `example_workflow.yml` includes the `polygonArea` step:
    ```yaml
-   - taskType: "polygonArea"
-     stepNumber: 3
+   name: "example_workflow"
+   steps:
+     - taskType: "notification"
+       stepNumber: 1
+     - taskType: "analysis"
+       stepNumber: 2
+     - taskType: "polygonArea"
+       stepNumber: 3
    ```
 
 2. Start the server:
@@ -211,7 +217,7 @@ Create a new job class to calculate the area of a polygon from the GeoJSON provi
    ```bash
    curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-63.624885,-10.311050],[-63.624885,-10.367865],[-63.612783,-10.367865],[-63.612783,-10.311050],[-63.624885,-10.311050]]]},"properties":{}}}'
    ```
-   Expected: `polygonArea` task completes with area in square meters (e.g. `"8363324.27..."`).
+   Expected: `polygonArea` task completes with area in square meters (e.g. `"8363367.565848464"`).
 
 4. Send an invalid GeoJSON request:
    ```bash
@@ -258,9 +264,17 @@ Create a new job class to generate a report by aggregating the outputs of multip
 
 1. Make sure `example_workflow.yml` has the `report` step with `dependsOn`:
    ```yaml
-   - taskType: "report"
-     stepNumber: 4
-     dependsOn: [1, 2, 3]
+   name: "example_workflow"
+   steps:
+     - taskType: "notification"
+       stepNumber: 1
+     - taskType: "analysis"
+       stepNumber: 2
+     - taskType: "polygonArea"
+       stepNumber: 3
+     - taskType: "report"
+       stepNumber: 4
+       dependsOn: [1, 2, 3]
    ```
    > **Why `dependsOn` is required here:** Rather than having the report task magically detect and wait for "all preceding tasks," i used the explicit `dependsOn` system from Task 3. I will explain my reasoning.. `ReportGenerationJob` aggregates only its declared dependencies.. This makes it composable (e.g., a workflow could have multiple report tasks each covering different subsets of steps). For a full aggregation of ALL tasks regardless of dependencies, Task 4's `finalResult` on Workflow should be available for users to get a complete report of all the tasks in the workflow. In a real-life scenario however, if i saw Step 4 as a user story after we delivered step 2 to production, i would have a meeting with the PO to revisit the requirements. For this small project, since i am not able to ask questions atm, this approach seemed like a good tradeoff. 
 
@@ -273,20 +287,53 @@ Create a new job class to generate a report by aggregating the outputs of multip
    ```bash
    curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Polygon","coordinates":[[[-63.624885,-10.311050],[-63.624885,-10.367865],[-63.612783,-10.367865],[-63.612783,-10.311050],[-63.624885,-10.311050]]]}}'
    ```
-   Wait around 25 seconds. Expected:
-   - `notification`, `analysis`, `polygonArea`, and `report` all hit `completed`
-   - `report` result: JSON object with `workflowId`, a `tasks` array containing the output of each dependency, and `"finalReport": "Aggregated data and results"`
-   - Workflow status: `completed`
+   Wait ~25 seconds. Tasks 1–3 have no dependencies so they run in whatever order SQLite returns them — the order may vary. Expected database state (verify via `sqlite3`, task order inside `report.output.tasks` may vary):
+   ```json
+   {
+     "workflowStatus": "completed",
+     "tasks": [
+       { "type": "notification", "status": "completed" },
+       { "type": "analysis", "status": "completed" },
+       { "type": "polygonArea", "status": "completed" },
+       { "type": "report", "status": "completed", "output": {
+           "workflowId": "<uuid>",
+           "tasks": [
+             { "taskId": "<id>", "type": "notification", "output": {} },
+             { "taskId": "<id>", "type": "analysis", "output": "Brazil" },
+             { "taskId": "<id>", "type": "polygonArea", "output": "8363367.565848464" }
+           ],
+           "finalReport": "Aggregated data and results"
+         }
+       }
+     ]
+   }
+   ```
 
 4. Send invalid GeoJSON — the report should still run and capture the failure:
    ```bash
    curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Point","coordinates":[0,0]}}'
    ```
-   Expected:
-   - `polygonArea` fails with the error stored in the `progress` field
-   - `report` waits for its dependencies to reach a terminal state before running
-   - Report result includes `"output": null, "error": "Invalid GeoJSON: expected Polygon or MultiPolygon, got Point"` for the `polygonArea` task
-   - Workflow status: `failed`
+   Expected database state (verify via `sqlite3`, task order inside `report.output.tasks` may vary):
+   ```json
+   {
+     "workflowStatus": "failed",
+     "tasks": [
+       { "type": "notification", "status": "completed" },
+       { "type": "analysis", "status": "completed" },
+       { "type": "polygonArea", "status": "failed" },
+       { "type": "report", "status": "completed", "output": {
+           "workflowId": "<uuid>",
+           "tasks": [
+             { "taskId": "<id>", "type": "notification", "output": {} },
+             { "taskId": "<id>", "type": "analysis", "output": "No country found" },
+             { "taskId": "<id>", "type": "polygonArea", "output": null, "error": "Invalid GeoJSON: expected Polygon or MultiPolygon, got Point" }
+           ],
+           "finalReport": "Aggregated data and results"
+         }
+       }
+     ]
+   }
+   ```
 
 5. Check the database to verify all entries.
 
@@ -315,18 +362,20 @@ Modify the system to support workflows with tasks that depend on the outputs of 
    ```yaml
    name: "example_workflow"
    steps:
-     - taskType: "notification"
-       stepNumber: 1
-     - taskType: "analysis"
-       stepNumber: 2
-       dependsOn: [1]
-     - taskType: "polygonArea"
-       stepNumber: 3
      - taskType: "report"
+       stepNumber: 1
+       dependsOn: [2, 3, 4]
+     - taskType: "notification"
+       stepNumber: 2
+     - taskType: "analysis"
+       stepNumber: 3
+       dependsOn: [2]
+     - taskType: "polygonArea"
        stepNumber: 4
-       dependsOn: [1, 2, 3]
    ```
-   Note: `analysis` (step 2) depends on `notification` (step 1).. This proves that execution order is determined by `dependsOn`, not by step number or SQLite insertion order.
+   Note: This YAML intentionally restructures the workflow from Step 2 to prove that `dependsOn` drives execution order, not step number or YAML order:
+   - `report` is step 1 but depends on steps 2, 3, and 4 — so it runs last
+   - `analysis` (step 3) now depends on `notification` (step 2) — this adds a chain to verify that blocked tasks wait correctly
 
 2. Start the server:
    ```bash
@@ -337,24 +386,60 @@ Modify the system to support workflows with tasks that depend on the outputs of 
    ```bash
    curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Polygon","coordinates":[[[-63.624885,-10.311050],[-63.624885,-10.367865],[-63.612783,-10.367865],[-63.612783,-10.311050],[-63.624885,-10.311050]]]}}'
    ```
-   Wait around 25 seconds. Expect the following task execution order:
-   - `notification` (step 1) — runs immediately (no deps)
-   - `polygonArea` (step 3) — runs immediately (no deps)
-   - `analysis` (step 2) — runs only after `notification` completes
-   - `report` (step 4) — runs only after steps 1, 2, and 3 all reach a terminal state
+   Wait ~25 seconds. Execution order is determined by `dependsOn`, not step number:
+   - `notification` (step 2) and `polygonArea` (step 4) are eligible immediately (no deps) — they run in whatever order the worker picks them up
+   - `analysis` (step 3) is blocked until `notification` completes
+   - `report` (step 1) is blocked until steps 2, 3, and 4 all reach a terminal state — runs last despite being step 1
 
-   All 4 tasks should be `completed` and also workflow status should be `completed`.
+   Expected database state (verify via `sqlite3`, task order inside `report.output.tasks` may vary):
+   ```json
+   {
+     "workflowStatus": "completed",
+     "tasks": [
+       { "type": "report", "stepNumber": 1, "status": "completed", "output": {
+           "workflowId": "<uuid>",
+           "tasks": [
+             { "taskId": "<id>", "type": "notification", "output": {} },
+             { "taskId": "<id>", "type": "analysis", "output": "Brazil" },
+             { "taskId": "<id>", "type": "polygonArea", "output": "8363367.565848464" }
+           ],
+           "finalReport": "Aggregated data and results"
+         }
+       },
+       { "type": "notification", "stepNumber": 2, "status": "completed" },
+       { "type": "analysis", "stepNumber": 3, "status": "completed" },
+       { "type": "polygonArea", "stepNumber": 4, "status": "completed" }
+     ]
+   }
+   ```
 
 4. Send invalid GeoJSON to verify failure propagation:
    ```bash
    curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Point","coordinates":[0,0]}}'
    ```
-   Expected:
-   - `polygonArea` fails (invalid geometry type)
-   - `analysis` still runs after `notification` completes 
-   - `report` runs after all 3 deps are terminal (including the failed `polygonArea`)
-   - Report result includes `"output": null, "error": "Invalid GeoJSON: expected Polygon or MultiPolygon, got Point"` for the `polygonArea` entry
-   - Workflow status is `failed` since `polygonArea` failed..
+   `analysis` still runs (its only dep is `notification`). `report` (step 1) runs last — after all 3 deps reach terminal state, including the failed `polygonArea`.
+
+   Expected database state (verify via `sqlite3`, task order inside `report.output.tasks` may vary):
+   ```json
+   {
+     "workflowStatus": "failed",
+     "tasks": [
+       { "type": "report", "stepNumber": 1, "status": "completed", "output": {
+           "workflowId": "<uuid>",
+           "tasks": [
+             { "taskId": "<id>", "type": "notification", "output": {} },
+             { "taskId": "<id>", "type": "analysis", "output": "No country found" },
+             { "taskId": "<id>", "type": "polygonArea", "output": null, "error": "Invalid GeoJSON: expected Polygon or MultiPolygon, got Point" }
+           ],
+           "finalReport": "Aggregated data and results"
+         }
+       },
+       { "type": "notification", "stepNumber": 2, "status": "completed" },
+       { "type": "analysis", "stepNumber": 3, "status": "completed" },
+       { "type": "polygonArea", "stepNumber": 4, "status": "failed" }
+     ]
+   }
+   ```
 
 5. Verify results in the database...
 
