@@ -678,6 +678,16 @@ Implement an API endpoint to retrieve the final results of a completed workflow.
 
 ---
 
-### **Testing: Workflow YAML per Step**
+# My notes
 
-Each step's testing section uses a different `example_workflow.yml`. Before testing a step, copy the YAML shown in that step's instructions into `src/workflows/example_workflow.yml` and restart the server. The DB is wiped on every restart so there's no leftover state to worry about.
+### Testing
+
+All testing instructions (with curl commands and expected outputs) live under each step above (1–6). Each step uses a slightly different `example_workflow.yml` — just copy the YAML from that step's testing section into `src/workflows/example_workflow.yml` and restart the server. The DB is wiped on every restart so there's no leftover state to worry about.
+
+### TODOs
+
+I've left `TODO` comments in the codebase where I spotted room for improvement but kept things scoped to the challenge.
+
+### Design Decisions
+
+Some of the bigger "why" decisions are explained inline in the Step 2 and 3 testing sections (e.g., why `dependsOn` is explicit, push vs pull for dependency outputs). Happy to chat through any of these live.
