@@ -550,6 +550,46 @@ Implement an API endpoint to retrieve the current status of a workflow.
 - Include the number of completed tasks and the total number of tasks in the workflow.
 - Return a `404` response if the workflow ID does not exist.
 
+#### **Testing:**
+
+1. Start the server:
+   ```bash
+   npm start
+   ```
+
+2. Create a workflow:
+   ```bash
+   curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Polygon","coordinates":[[[-63.624885,-10.311050],[-63.624885,-10.367865],[-63.612783,-10.367865],[-63.612783,-10.311050],[-63.624885,-10.311050]]]}}'
+   ```
+
+3. `GET /workflow/:id/status` — while tasks are still running:
+   ```bash
+   curl http://localhost:3000/workflow/<workflowId>/status
+   ```
+   ```json
+   {
+     "workflowId": "<uuid>",
+     "status": "in_progress",
+     "completedTasks": 1,
+     "totalTasks": 3
+   }
+   ```
+
+4. `GET /workflow/:id/status` — after all tasks complete:
+   ```json
+   {
+     "workflowId": "<uuid>",
+     "status": "completed",
+     "completedTasks": 3,
+     "totalTasks": 3
+   }
+   ```
+
+5. `GET /workflow/:id/status` — nonexistent ID returns `404`:
+   ```json
+   { "message": "Workflow not found" }
+   ```
+
 ---
 
 ### **6. Create an Endpoint for Retrieving Workflow Results**
@@ -575,6 +615,51 @@ Implement an API endpoint to retrieve the final results of a completed workflow.
 - Return the `finalResult` field of the workflow if it is completed.
 - Return a `404` response if the workflow ID does not exist.
 - Return a `400` response if the workflow is not yet completed.
+
+#### **Testing:**
+
+1. `GET /workflow/:id/results` — completed workflow:
+   ```bash
+   curl http://localhost:3000/workflow/<workflowId>/results
+   ```
+   ```json
+   {
+     "workflowId": "<uuid>",
+     "status": "completed",
+     "finalResult": {
+       "tasks": [
+         { "taskId": "<id>", "type": "notification", "output": {} },
+         { "taskId": "<id>", "type": "analysis", "output": "Brazil" },
+         { "taskId": "<id>", "type": "polygonArea", "output": "8363367.565848464" }
+       ]
+     }
+   }
+   ```
+
+2. `GET /workflow/:id/results` — failed workflow (also returns `finalResult`):
+   ```json
+   {
+     "workflowId": "<uuid>",
+     "status": "failed",
+     "finalResult": {
+       "tasks": [
+         { "taskId": "<id>", "type": "notification", "output": {} },
+         { "taskId": "<id>", "type": "analysis", "output": "No country found" },
+         { "taskId": "<id>", "type": "polygonArea", "output": null, "error": "Invalid GeoJSON: expected Polygon or MultiPolygon, got Point" }
+       ]
+     }
+   }
+   ```
+
+3. `GET /workflow/:id/results` — workflow still in progress returns `400`:
+   ```json
+   { "message": "Workflow is not yet completed" }
+   ```
+
+4. `GET /workflow/:id/results` — nonexistent ID returns `404`:
+   ```json
+   { "message": "Workflow not found" }
+   ```
 
 ---
 
