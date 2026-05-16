@@ -9,7 +9,7 @@ export async function buildTaskResults(
     resultRepository: Repository<Result>
 ): Promise<DependencyResult[]> {
     const terminalTasks = tasks.filter(
-        t => [TaskStatus.Completed, TaskStatus.Failed].includes(t.status)
+        task => [TaskStatus.Completed, TaskStatus.Failed].includes(task.status)
     );
 
     return Promise.all(

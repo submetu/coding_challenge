@@ -83,11 +83,11 @@ export class TaskRunner {
         if (!workflow) return;
 
         const allTerminal = workflow.tasks.every(
-            t => [TaskStatus.Completed, TaskStatus.Failed].includes(t.status)
+            task => [TaskStatus.Completed, TaskStatus.Failed].includes(task.status)
         );
 
         if (allTerminal) {
-            const anyFailed = workflow.tasks.some(t => t.status === TaskStatus.Failed);
+            const anyFailed = workflow.tasks.some(task => task.status === TaskStatus.Failed);
             workflow.status = anyFailed ? WorkflowStatus.Failed : WorkflowStatus.Completed;
 
             const taskResults = await buildTaskResults(workflow.tasks, resultRepo);
