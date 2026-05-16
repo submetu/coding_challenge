@@ -16,38 +16,40 @@ export class WorkflowFactory {
      * @param geoJson - The geoJson data string for tasks (customize as needed).
      * @returns A promise that resolves to the created Workflow.
      */
+    // Transaction ensures workflow + tasks + dependencies are created atomically.
     async createWorkflowFromYAML(filePath: string, clientId: string, geoJson: string): Promise<Workflow> {
         const fileContent = fs.readFileSync(filePath, 'utf8');
         const workflowDef = yaml.load(fileContent) as WorkflowDefinition;
-        const workflowRepository = this.dataSource.getRepository(Workflow);
-        const taskRepository = this.dataSource.getRepository(Task);
-        const workflow = new Workflow();
 
-        workflow.clientId = clientId;
-        workflow.status = WorkflowStatus.Initial;
+        return this.dataSource.transaction(async (manager) => {
+            const workflowRepository = manager.getRepository(Workflow);
+            const taskRepository = manager.getRepository(Task);
 
-        const savedWorkflow = await workflowRepository.save(workflow);
+            const workflow = new Workflow();
+            workflow.clientId = clientId;
+            workflow.status = WorkflowStatus.Initial;
+            const savedWorkflow = await workflowRepository.save(workflow);
 
-        const tasks: Task[] = workflowDef.steps.map(step => {
-            const task = new Task();
-            task.clientId = clientId;
-            task.geoJson = geoJson;
-            task.status = TaskStatus.Queued;
-            task.taskType = step.taskType;
-            task.stepNumber = step.stepNumber;
-            task.workflow = savedWorkflow;
-            return task;
+            const tasks: Task[] = workflowDef.steps.map(step => {
+                const task = new Task();
+                task.clientId = clientId;
+                task.geoJson = geoJson;
+                task.status = TaskStatus.Queued;
+                task.taskType = step.taskType;
+                task.stepNumber = step.stepNumber;
+                task.workflow = savedWorkflow;
+                return task;
+            });
+
+            const savedTasks = await taskRepository.save(tasks);
+
+            const tasksWithDeps = this.resolveDependencies(workflowDef.steps, savedTasks);
+            if (tasksWithDeps.length > 0) {
+                await taskRepository.save(tasksWithDeps);
+            }
+
+            return savedWorkflow;
         });
-
-        const savedTasks = await taskRepository.save(tasks);
-
-        const tasksWithDeps = this.resolveDependencies(workflowDef.steps, savedTasks);
-        // Only save tasks that have dependencies (avoids unnecessary DB writes)
-        if (tasksWithDeps.length > 0) {
-            await taskRepository.save(tasksWithDeps);
-        }
-
-        return savedWorkflow;
     }
 
     /**
