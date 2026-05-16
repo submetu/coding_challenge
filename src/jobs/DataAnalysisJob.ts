@@ -8,6 +8,7 @@ export class DataAnalysisJob implements Job {
     async run(task: Task): Promise<string> {
         console.log(`Running data analysis for task ${task.taskId}...`);
 
+        // TODO: validate GeoJSON geometry type before casting (like PolygonAreaJob does)
         const inputGeometry: Feature<Polygon> = JSON.parse(task.geoJson);
 
         for (const countryFeature of countryMapping.features) {

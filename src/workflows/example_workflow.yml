@@ -7,6 +7,3 @@ steps:
     dependsOn: [1]
   - taskType: "polygonArea"
     stepNumber: 3
-  - taskType: "report"
-    stepNumber: 4
-    dependsOn: [1, 2, 3]

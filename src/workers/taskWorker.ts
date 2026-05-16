@@ -15,14 +15,14 @@ export async function taskWorker() {
         });
 
         for (const task of queuedTasks) {
-            if (await isReadyToRun(task)) {
+            if (isReadyToRun(task)) {
                 try {
                     await taskRunner.run(task);
                 } catch (error) {
                     console.error('Task execution failed. Task status has already been updated by TaskRunner.');
                     console.error(error);
                 }
-                break; // one task per tick
+                break; // one task per tick — TODO: run independent ready tasks concurrently
             }
         }
 

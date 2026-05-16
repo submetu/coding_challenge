@@ -215,7 +215,7 @@ Create a new job class to calculate the area of a polygon from the GeoJSON provi
 
 3. Send a valid polygon request:
    ```bash
-   curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-63.624885,-10.311050],[-63.624885,-10.367865],[-63.612783,-10.367865],[-63.612783,-10.311050],[-63.624885,-10.311050]]]},"properties":{}}}'
+   curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Polygon","coordinates":[[[-63.624885,-10.311050],[-63.624885,-10.367865],[-63.612783,-10.367865],[-63.612783,-10.311050],[-63.624885,-10.311050]]]}}'
    ```
    Expected: `polygonArea` task completes with area in square meters (e.g. `"8363367.565848464"`).
 
@@ -463,6 +463,67 @@ Save the aggregated results of all tasks in the workflow as the `finalResult` fi
 - The `finalResult` must include outputs from all completed tasks.
 - Handle cases where tasks fail, and include failure information in the final result.
 
+#### **Testing:**
+
+1. Make sure `example_workflow.yml` has the following steps:
+   ```yaml
+   name: "example_workflow"
+   steps:
+     - taskType: "notification"
+       stepNumber: 1
+     - taskType: "analysis"
+       stepNumber: 2
+       dependsOn: [1]
+     - taskType: "polygonArea"
+       stepNumber: 3
+   ```
+
+2. Start the server:
+   ```bash
+   npm start
+   ```
+
+3. Send a valid polygon request:
+   ```bash
+   curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Polygon","coordinates":[[[-63.624885,-10.311050],[-63.624885,-10.367865],[-63.612783,-10.367865],[-63.612783,-10.311050],[-63.624885,-10.311050]]]}}'
+   ```
+   Wait ~20 seconds. Expected database state (verify via `sqlite3`, task order inside `finalResult.tasks` may vary):
+   ```json
+   {
+     "workflowStatus": "completed",
+     "finalResult": {
+       "tasks": [
+         { "taskId": "<id>", "type": "notification", "output": {} },
+         { "taskId": "<id>", "type": "analysis", "output": "Brazil" },
+         { "taskId": "<id>", "type": "polygonArea", "output": "8363367.565848464" }
+       ]
+     }
+   }
+   ```
+
+4. Send invalid GeoJSON — `finalResult` should include failure information:
+   ```bash
+   curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Point","coordinates":[0,0]}}'
+   ```
+   Expected database state (verify via `sqlite3`, task order inside `finalResult.tasks` may vary):
+   ```json
+   {
+     "workflowStatus": "failed",
+     "finalResult": {
+       "tasks": [
+         { "taskId": "<id>", "type": "notification", "output": {} },
+         { "taskId": "<id>", "type": "analysis", "output": "No country found" },
+         { "taskId": "<id>", "type": "polygonArea", "output": null, "error": "Invalid GeoJSON: expected Polygon or MultiPolygon, got Point" }
+       ]
+     }
+   }
+   ```
+
+5. Verify results in the database:
+   ```bash
+   sqlite3 data/database.sqlite "SELECT status, finalResult FROM workflows;"
+   ```
+
 ---
 
 ### **5. Create an Endpoint for Getting Workflow Status**
@@ -531,3 +592,7 @@ Implement an API endpoint to retrieve the final results of a completed workflow.
   - Document the API endpoints with request and response examples.
 
 ---
+
+### **Testing: Workflow YAML per Step**
+
+Each step's testing section uses a different `example_workflow.yml`. Before testing a step, copy the YAML shown in that step's instructions into `src/workflows/example_workflow.yml` and restart the server. The DB is wiped on every restart so there's no leftover state to worry about.
