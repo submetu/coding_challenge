@@ -690,4 +690,12 @@ I've left `TODO` comments in the codebase where I spotted room for improvement b
 
 ### Design Decisions
 
-Some of the bigger "why" decisions are explained inline in the Step 2 and 3 testing sections (e.g., why `dependsOn` is explicit, push vs pull for dependency outputs). Happy to chat through any of these live.
+Some of decisions are explained inline in the Step 2 and 3 testing sections (e.g., why `dependsOn` is explicit). Happy to chat through any of these live.
+
+### Unit Tests
+
+Run with `npm test`. I kept these pretty minimal — just enough to cover the important stuff (state transitions, GeoJSON validation, dependency scheduling, result building). In a real project I'd go a lot deeper...
+
+### Node Version
+
+This project doesn't seem to work with the latest Node. I had to downgrade to Node 20 to get `npm install` to work. A newer version might also be fine, but the latest definitely isn't. I added an `engines` field in `package.json` to flag this.
