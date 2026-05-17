@@ -287,7 +287,7 @@ Create a new job class to generate a report by aggregating the outputs of multip
    ```bash
    curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Polygon","coordinates":[[[-63.624885,-10.311050],[-63.624885,-10.367865],[-63.612783,-10.367865],[-63.612783,-10.311050],[-63.624885,-10.311050]]]}}'
    ```
-   Wait ~25 seconds. Tasks 1–3 have no dependencies so they run in whatever order SQLite returns them — the order may vary. Expected database state (verify via `sqlite3`, task order inside `report.output.tasks` may vary):
+   Wait 25 seconds. Tasks 1–3 have no dependencies so they run in whatever order SQLite returns them — the order may vary. Expected database state (verify via `sqlite3`, task order inside `report.output.tasks` may vary):
    ```json
    {
      "workflowStatus": "completed",
@@ -386,7 +386,7 @@ Modify the system to support workflows with tasks that depend on the outputs of 
    ```bash
    curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Polygon","coordinates":[[[-63.624885,-10.311050],[-63.624885,-10.367865],[-63.612783,-10.367865],[-63.612783,-10.311050],[-63.624885,-10.311050]]]}}'
    ```
-   Wait ~25 seconds. Execution order is determined by `dependsOn`, not step number:
+   Wait 25 seconds. Execution order is determined by `dependsOn`, not step number:
    - `notification` (step 2) and `polygonArea` (step 4) are eligible immediately (no deps) — they run in whatever order the worker picks them up
    - `analysis` (step 3) is blocked until `notification` completes
    - `report` (step 1) is blocked until steps 2, 3, and 4 all reach a terminal state — runs last despite being step 1
@@ -487,7 +487,7 @@ Save the aggregated results of all tasks in the workflow as the `finalResult` fi
    ```bash
    curl -X POST http://localhost:3000/analysis -H "Content-Type: application/json" -d '{"clientId":"client123","geoJson":{"type":"Polygon","coordinates":[[[-63.624885,-10.311050],[-63.624885,-10.367865],[-63.612783,-10.367865],[-63.612783,-10.311050],[-63.624885,-10.311050]]]}}'
    ```
-   Wait ~20 seconds. Expected database state (verify via `sqlite3`, task order inside `finalResult.tasks` may vary):
+   Wait 20 seconds. Expected database state (verify via `sqlite3`, task order inside `finalResult.tasks` may vary):
    ```json
    {
      "workflowStatus": "completed",

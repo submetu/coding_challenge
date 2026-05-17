@@ -52,10 +52,12 @@ router.get('/:id/results', async (req, res) => {
             return;
         }
 
+        const finalResult = workflow.finalResult ? JSON.parse(workflow.finalResult) : null;
+
         res.json({
             workflowId: workflow.workflowId,
             status: workflow.status,
-            finalResult: JSON.parse(workflow.finalResult!)
+            finalResult
         });
     } catch (error) {
         console.error('Error fetching workflow results:', error);
