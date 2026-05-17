@@ -16,6 +16,8 @@ export class TaskRunner {
         task.status = TaskStatus.InProgress;
         task.progress = 'starting job...';
         await this.taskRepository.save(task);
+        // Non-critical: if this fails, settleWorkflow will correct the status later.
+        await this.markWorkflowInProgress(task);
 
         const outcome = await this.executeJob(task);
         try {
@@ -28,6 +30,15 @@ export class TaskRunner {
             await this.taskRepository.save(task);
 
             throw error;
+        }
+    }
+
+    private async markWorkflowInProgress(task: Task): Promise<void> {
+        const workflowRepo = this.taskRepository.manager.getRepository(Workflow);
+        const workflow = await workflowRepo.findOne({ where: { workflowId: task.workflow.workflowId } });
+        if (workflow && workflow.status === WorkflowStatus.Initial) {
+            workflow.status = WorkflowStatus.InProgress;
+            await workflowRepo.save(workflow);
         }
     }
 
